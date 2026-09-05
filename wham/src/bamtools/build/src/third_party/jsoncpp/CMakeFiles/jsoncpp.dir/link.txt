@@ -1,0 +1,2 @@
+/usr/bin/ar qc /Users/nathanielheitsch/emdash/worktrees/neuro-resus/issue/clean-papers-hide-4ylf4/wham/src/bamtools/lib/libjsoncpp.a CMakeFiles/jsoncpp.dir/json_reader.cpp.o CMakeFiles/jsoncpp.dir/json_value.cpp.o CMakeFiles/jsoncpp.dir/json_writer.cpp.o
+/usr/bin/ranlib /Users/nathanielheitsch/emdash/worktrees/neuro-resus/issue/clean-papers-hide-4ylf4/wham/src/bamtools/lib/libjsoncpp.a

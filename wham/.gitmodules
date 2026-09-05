@@ -1,0 +1,13 @@
+[submodule "src/bamtools"]
+	path = src/bamtools
+	url = https://github.com/pezmaster31/bamtools.git
+[submodule "src/seqan"]
+	path = src/seqan
+	url = https://github.com/seqan/seqan.git
+[submodule "src/Complete-Striped-Smith-Waterman-Library"]
+	path = src/Complete-Striped-Smith-Waterman-Library
+	url = https://github.com/mengyao/Complete-Striped-Smith-Waterman-Library.git
+
+[submodule "src/fastahack"]
+	path = src/fastahack
+	url = https://github.com/ekg/fastahack.git
