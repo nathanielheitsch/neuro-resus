@@ -1,0 +1,50 @@
+//
+// Manta - Structural Variant and Indel Caller
+// Copyright (c) 2013-2025 Illumina, Inc.
+//
+// This program is licensed under the terms of the Polyform strict license
+//
+// ***As far as the law allows, the software comes as is, without
+// any warranty or condition, and the licensor will not be liable
+// to you for any damages arising out of these terms or the use
+// or nature of the software, under any kind of legal claim.***
+//
+// You should have received a copy of the PolyForm Strict License 1.0.0
+// along with this program.  If not, see <https://polyformproject.org/licenses/strict/1.0.0>.
+//
+//
+
+/// \file
+/// \author Chris Saunders
+///
+
+#pragma once
+
+#include "blt_util/chrom_depth_map.hpp"
+#include "htsapi/bam_header_info.hpp"
+
+#include <cassert>
+
+#include <vector>
+
+/// hold information about chrom depth cutoffs
+///
+/// preprocess the chrom depth file so that the filter value can be
+/// efficiently looked up by bam tid
+///
+struct ChromDepthFilterUtil {
+  ChromDepthFilterUtil(
+      const std::string& chromDepthFile, const double maxDepthFactor, const bam_header_info& header);
+
+  bool isMaxDepthFilter() const { return _isMaxDepthFilter; }
+
+  double maxDepth(const int32_t tid) const
+  {
+    assert((tid >= 0) && (tid < static_cast<int32_t>(_maxDepthFilter.size())));
+    return _maxDepthFilter[tid];
+  }
+
+private:
+  bool                _isMaxDepthFilter;
+  std::vector<double> _maxDepthFilter;
+};

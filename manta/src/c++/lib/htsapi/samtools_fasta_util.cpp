@@ -1,0 +1,142 @@
+//
+// Manta - Structural Variant and Indel Caller
+// Copyright (c) 2013-2025 Illumina, Inc.
+//
+// This program is licensed under the terms of the Polyform strict license
+//
+// ***As far as the law allows, the software comes as is, without
+// any warranty or condition, and the licensor will not be liable
+// to you for any damages arising out of these terms or the use
+// or nature of the software, under any kind of legal claim.***
+//
+// You should have received a copy of the PolyForm Strict License 1.0.0
+// along with this program.  If not, see <https://polyformproject.org/licenses/strict/1.0.0>.
+//
+//
+
+/// \file
+/// \author Bret Barnes
+///
+
+#include "samtools_fasta_util.hpp"
+
+#include "blt_util/blt_exception.hpp"
+#include "blt_util/parse_util.hpp"
+#include "blt_util/seq_util.hpp"
+#include "blt_util/string_util.hpp"
+
+extern "C" {
+#include "htslib/faidx.h"
+}
+
+#include <cassert>
+
+#include <fstream>
+#include <iostream>
+#include <sstream>
+#include <vector>
+
+void get_chrom_sizes(const std::string& fai_file, std::map<std::string, unsigned>& chrom_sizes)
+{
+  static const char delim('\t');
+
+  chrom_sizes.clear();
+  std::ifstream fis(fai_file.c_str());
+
+  std::string              line;
+  std::vector<std::string> word;
+
+  while (!fis.eof()) {
+    getline(fis, line);
+
+    split_string(line, delim, word);
+
+    assert(2 <= word.size());
+
+    assert(0 == chrom_sizes.count(word[0]));
+
+    const unsigned length(illumina::blt_util::parse_unsigned_str(word[1]));
+    chrom_sizes.insert(std::make_pair(word[0], length));
+  }
+}
+
+unsigned get_chrom_length(const std::string& fai_file, const std::string& chrom_name)
+{
+  static const char delim('\t');
+
+  bool     isFound(false);
+  unsigned retval(0);
+  {
+    std::ifstream fis(fai_file.c_str());
+
+    std::string              line;
+    std::vector<std::string> word;
+
+    while (!fis.eof()) {
+      getline(fis, line);
+
+      split_string(line, delim, word);
+
+      assert(2 <= word.size());
+      if (word[0] != chrom_name) continue;
+      retval  = illumina::blt_util::parse_unsigned_str(word[1]);
+      isFound = true;
+      break;
+    }
+  }
+
+  if (!isFound) {
+    std::ostringstream oss;
+    oss << "Unable to find chromosome '" << chrom_name << "' in fai file '" << fai_file << "'";
+    throw blt_exception(oss.str().c_str());
+  }
+  return retval;
+}
+
+void get_region_seq(const std::string& ref_file, const std::string& fa_region, std::string& ref_seq)
+{
+  faidx_t* fai(fai_load(ref_file.c_str()));
+  int      len;  // throwaway...
+  char*    ref_tmp(fai_fetch(fai, fa_region.c_str(), &len));
+  if (nullptr == ref_tmp) {
+    std::ostringstream oss;
+    oss << "Can't find sequence region '" << fa_region << "' in reference file: '" << ref_file << "'";
+    throw blt_exception(oss.str().c_str());
+  }
+  ref_seq.assign(ref_tmp);
+  free(ref_tmp);
+  fai_destroy(fai);
+}
+
+void get_region_seq(
+    const std::string& ref_file,
+    const std::string& chrom,
+    const int          begin_pos,
+    const int          end_pos,
+    std::string&       ref_seq)
+{
+  assert(!ref_file.empty());
+  faidx_t* fai(fai_load(ref_file.c_str()));
+  int      len;  // throwaway...
+  char*    ref_tmp(faidx_fetch_seq(fai, const_cast<char*>(chrom.c_str()), begin_pos, end_pos, &len));
+  if (nullptr == ref_tmp) {
+    std::ostringstream oss;
+    oss << "Can't find sequence region '" << chrom << ":" << (begin_pos + 1) << "-" << (end_pos + 1)
+        << "' in reference file: '" << ref_file << "'";
+    throw blt_exception(oss.str().c_str());
+  }
+  ref_seq.assign(ref_tmp);
+  free(ref_tmp);
+  fai_destroy(fai);
+}
+
+void get_standardized_region_seq(
+    const std::string& ref_file,
+    const std::string& chrom,
+    const int          begin_pos,
+    const int          end_pos,
+    std::string&       ref_seq)
+{
+  get_region_seq(ref_file, chrom, begin_pos, end_pos, ref_seq);
+  standardize_ref_seq(ref_file.c_str(), chrom.c_str(), ref_seq, begin_pos);
+}

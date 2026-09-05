@@ -1,0 +1,201 @@
+//
+// Manta - Structural Variant and Indel Caller
+// Copyright (c) 2013-2025 Illumina, Inc.
+//
+// This program is licensed under the terms of the Polyform strict license
+//
+// ***As far as the law allows, the software comes as is, without
+// any warranty or condition, and the licensor will not be liable
+// to you for any damages arising out of these terms or the use
+// or nature of the software, under any kind of legal claim.***
+//
+// You should have received a copy of the PolyForm Strict License 1.0.0
+// along with this program.  If not, see <https://polyformproject.org/licenses/strict/1.0.0>.
+//
+//
+
+/// \file
+/// \author Chris Saunders
+///
+
+#include "format/VcfWriterDiploidSV.hpp"
+
+void VcfWriterDiploidSV::addHeaderInfo(std::ostream& os) const
+{
+  os << "##INFO=<ID=BND_DEPTH,Number=1,Type=Integer,Description=\"Read depth at local translocation breakend\">\n";
+  os << "##INFO=<ID=MATE_BND_DEPTH,Number=1,Type=Integer,Description=\"Read depth at remote translocation mate breakend\">\n";
+  os << "##INFO=<ID=JUNCTION_QUAL,Number=1,Type=Integer,Description=\"If the SV junction is part of an EVENT (ie. a multi-adjacency variant), this field provides the QUAL value for the adjacency in question only\">\n";
+}
+
+void VcfWriterDiploidSV::addHeaderFormat(std::ostream& os) const
+{
+  os << "##FORMAT=<ID=GT,Number=1,Type=String,Description=\"Genotype\">\n";
+  os << "##FORMAT=<ID=FT,Number=1,Type=String,Description=\"Sample filter, 'PASS' indicates that all filters have passed for this sample\">\n";
+  os << "##FORMAT=<ID=GQ,Number=1,Type=Integer,Description=\"Genotype Quality\">\n";
+  os << "##FORMAT=<ID=PL,Number=G,Type=Integer,Description=\"Normalized, Phred-scaled likelihoods for genotypes as defined in the VCF specification\">\n";
+  os << "##FORMAT=<ID=PR,Number=.,Type=Integer,Description=\"Spanning paired-read support for the ref and alt alleles in the order listed\">\n";
+  os << "##FORMAT=<ID=SR,Number=.,Type=Integer,Description=\"Split reads for the ref and alt alleles in the order listed, for reads where P(allele|read)>0.999\">\n";
+}
+
+void VcfWriterDiploidSV::addHeaderFilters(std::ostream& os) const
+{
+  if (_isMaxDepthFilter) {
+    os << "##FILTER=<ID=" << _diploidOpt.maxDepthFilterLabel << ",Description=\"Depth is greater than "
+       << _diploidOpt.maxDepthFactor
+       << "x the median chromosome depth near one or both variant breakends\">\n";
+  }
+  os << "##FILTER=<ID=" << _diploidOpt.maxMQ0FracLabel
+     << ",Description=\"For a small variant (<1000 bases), the fraction of reads in all samples with MAPQ0 around either breakend exceeds "
+     << _diploidOpt.maxMQ0Frac << "\">\n";
+  os << "##FILTER=<ID=" << _diploidOpt.noPairSupportLabel
+     << ",Description=\"For variants significantly larger than the paired read fragment size, no paired reads support the alternate allele in any sample.\">\n";
+  os << "##FILTER=<ID=" << _diploidOpt.minAltFilterLabel << ",Description=\"QUAL score is less than "
+     << _diploidOpt.minPassAltScore << "\">\n";
+  os << "##FILTER=<ID=" << _diploidOpt.failedSampleFTLabel
+     << ",Description=\"No sample passes all the sample-level filters (at the field FORMAT/FT)\">\n";
+  os << "##FILTER=<ID=" << _diploidOpt.minGTFilterLabel << ",Description=\"GQ score is less than "
+     << _diploidOpt.minPassGTScore << " (filter applied at sample level)\">\n";
+  os << "##FILTER=<ID=" << _diploidOpt.homRefLabel
+     << ",Description=\"homozygous reference call (filter applied at sample level)\">\n";
+}
+
+typedef std::pair<const SVScoreInfoDiploid*, const SVScoreInfoDiploid*> AllDiploidScoringInfo;
+
+void VcfWriterDiploidSV::modifyInfo(
+    const EventInfo& event, const boost::any specializedScoringInfo, InfoTag_t& infotags) const
+{
+  if (event.isEvent()) {
+    const SVScoreInfoDiploid& singleJunctionDiploidScoringInfo(
+        *boost::any_cast<AllDiploidScoringInfo>(specializedScoringInfo).second);
+    infotags.push_back(str(boost::format("JUNCTION_QUAL=%i") % singleJunctionDiploidScoringInfo.altScore));
+  }
+}
+
+void VcfWriterDiploidSV::modifyTranslocInfo(
+    const SVCandidate& /*sv*/,
+    const SVScoreInfo* baseScoringInfoPtr,
+    const bool         isFirstOfPair,
+    const SVCandidateAssemblyData& /*assemblyData*/,
+    InfoTag_t& infotags) const
+{
+  assert(baseScoringInfoPtr);
+  const SVScoreInfo& baseScoringInfo(*baseScoringInfoPtr);
+
+  infotags.push_back(
+      str(boost::format("BND_DEPTH=%i") %
+          (isFirstOfPair ? baseScoringInfo.bp1MaxDepth : baseScoringInfo.bp2MaxDepth)));
+  infotags.push_back(
+      str(boost::format("MATE_BND_DEPTH=%i") %
+          (isFirstOfPair ? baseScoringInfo.bp2MaxDepth : baseScoringInfo.bp1MaxDepth)));
+}
+
+void VcfWriterDiploidSV::writeQual(const boost::any specializedScoringInfo, std::ostream& os) const
+{
+  const SVScoreInfoDiploid& diploidScoringInfo(
+      *boost::any_cast<AllDiploidScoringInfo>(specializedScoringInfo).first);
+  os << diploidScoringInfo.altScore;
+}
+
+void VcfWriterDiploidSV::writeFilter(const boost::any specializedScoringInfo, std::ostream& os) const
+{
+  const SVScoreInfoDiploid& diploidScoringInfo(
+      *boost::any_cast<AllDiploidScoringInfo>(specializedScoringInfo).first);
+  writeFilters(diploidScoringInfo.filters, os);
+}
+
+static const char* gtLabel(const DIPLOID_GT::index_t id)
+{
+  using namespace DIPLOID_GT;
+  switch (id) {
+  case REF:
+    return "0/0";
+  case HET:
+    return "0/1";
+  case HOM:
+    return "1/1";
+  default:
+    return "";
+  }
+}
+
+void VcfWriterDiploidSV::modifySample(
+    const SVCandidate& sv,
+    const SVScoreInfo* baseScoringInfoPtr,
+    const boost::any   specializedScoringInfo,
+    SampleTag_t&       sampletags) const
+{
+  assert(baseScoringInfoPtr);
+  const SVScoreInfo&        baseScoringInfo(*baseScoringInfoPtr);
+  const SVScoreInfoDiploid& diploidScoringInfo(
+      *boost::any_cast<AllDiploidScoringInfo>(specializedScoringInfo).first);
+
+  const unsigned diploidSampleCount(diploidScoringInfo.samples.size());
+
+  std::vector<std::string> values(diploidSampleCount);
+  for (unsigned diploidSampleIndex(0); diploidSampleIndex < diploidSampleCount; ++diploidSampleIndex) {
+    const SVScoreInfoDiploidSample& diploidSampleInfo(diploidScoringInfo.samples[diploidSampleIndex]);
+    values[diploidSampleIndex] = gtLabel(diploidSampleInfo.gt);
+  }
+  sampletags.push_back(std::make_pair("GT", values));
+
+  for (unsigned diploidSampleIndex(0); diploidSampleIndex < diploidSampleCount; ++diploidSampleIndex) {
+    const SVScoreInfoDiploidSample& diploidSampleInfo(diploidScoringInfo.samples[diploidSampleIndex]);
+
+    writeFilters(diploidSampleInfo.filters, values[diploidSampleIndex]);
+  }
+  sampletags.push_back(std::make_pair("FT", values));
+
+  for (unsigned diploidSampleIndex(0); diploidSampleIndex < diploidSampleCount; ++diploidSampleIndex) {
+    const SVScoreInfoDiploidSample& diploidSampleInfo(diploidScoringInfo.samples[diploidSampleIndex]);
+
+    values[diploidSampleIndex] = str(boost::format("%s") % diploidSampleInfo.gtScore);
+  }
+  sampletags.push_back(std::make_pair("GQ", values));
+
+  for (unsigned diploidSampleIndex(0); diploidSampleIndex < diploidSampleCount; ++diploidSampleIndex) {
+    const SVScoreInfoDiploidSample& diploidSampleInfo(diploidScoringInfo.samples[diploidSampleIndex]);
+
+    values[diploidSampleIndex] = str(
+        boost::format("%s,%s,%s") % diploidSampleInfo.phredLoghood[DIPLOID_GT::REF] %
+        diploidSampleInfo.phredLoghood[DIPLOID_GT::HET] % diploidSampleInfo.phredLoghood[DIPLOID_GT::HOM]);
+  }
+  sampletags.push_back(std::make_pair("PL", values));
+
+  for (unsigned diploidSampleIndex(0); diploidSampleIndex < diploidSampleCount; ++diploidSampleIndex) {
+    const SVSampleInfo& sampleInfo(baseScoringInfo.samples[diploidSampleIndex]);
+    values[diploidSampleIndex] =
+        str(boost::format("%i,%i") % sampleInfo.ref.confidentSpanningPairCount %
+            sampleInfo.alt.confidentSpanningPairCount);
+  }
+  sampletags.push_back(std::make_pair("PR", values));
+
+  if (sv.isImprecise()) return;
+
+  for (unsigned diploidSampleIndex(0); diploidSampleIndex < diploidSampleCount; ++diploidSampleIndex) {
+    const SVSampleInfo& sampleInfo(baseScoringInfo.samples[diploidSampleIndex]);
+    values[diploidSampleIndex] =
+        str(boost::format("%i,%i") % sampleInfo.ref.confidentSplitReadCount %
+            sampleInfo.alt.confidentSplitReadCount);
+  }
+  sampletags.push_back(std::make_pair("SR", values));
+}
+
+void VcfWriterDiploidSV::writeSV(
+    const SVCandidateSetData&      svData,
+    const SVCandidateAssemblyData& adata,
+    const SVCandidate&             sv,
+    const SVId&                    svId,
+    const SVScoreInfo&             baseScoringInfo,
+    const SVScoreInfoDiploid&      diploidInfo,
+    const EventInfo&               event,
+    const SVScoreInfoDiploid&      singleJunctionDiploidInfo) const
+{
+  writeSVCore(
+      svData,
+      adata,
+      sv,
+      svId,
+      &baseScoringInfo,
+      std::make_pair(&diploidInfo, &singleJunctionDiploidInfo),
+      event);
+}

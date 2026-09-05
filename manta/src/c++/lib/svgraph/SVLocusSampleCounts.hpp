@@ -1,0 +1,170 @@
+//
+// Manta - Structural Variant and Indel Caller
+// Copyright (c) 2013-2025 Illumina, Inc.
+//
+// This program is licensed under the terms of the Polyform strict license
+//
+// ***As far as the law allows, the software comes as is, without
+// any warranty or condition, and the licensor will not be liable
+// to you for any damages arising out of these terms or the use
+// or nature of the software, under any kind of legal claim.***
+//
+// You should have received a copy of the PolyForm Strict License 1.0.0
+// along with this program.  If not, see <https://polyformproject.org/licenses/strict/1.0.0>.
+//
+//
+
+/// \file
+/// \author Chris Saunders
+///
+
+#pragma once
+
+#include "manta/SVBreakend.hpp"
+#include "manta/SVLocusEvidenceCount.hpp"
+
+#include <algorithm>
+#include <iosfwd>
+#include <string>
+#include <vector>
+
+/// enumerate evidence type estimated on input for each sample
+struct SampleReadInputCounts {
+  void clear()
+  {
+    minMapq = 0;
+    evidenceCount.clear();
+  }
+
+  double total() const { return (minMapq + evidenceCount.total); }
+
+  void merge(const SampleReadInputCounts& rhs)
+  {
+    minMapq += rhs.minMapq;
+    evidenceCount.merge(rhs.evidenceCount);
+  }
+
+  void write(std::ostream& os) const;
+
+  template <class Archive>
+  void serialize(Archive& ar, const unsigned /* version */)
+  {
+    ar& minMapq& evidenceCount;
+  }
+
+  // using doubles for integral counts here because (1) counts are potentially very high and (2) exact counts
+  // don't matter
+
+  /// Total number of reads filtered for mapq before any classification step
+  double minMapq = 0;
+
+  SVLocusEvidenceCount evidenceCount;
+};
+
+/// enumerate detailed evidence type counts for each sample
+struct SampleEvidenceCounts {
+  void clear()
+  {
+    std::fill(eType.begin(), eType.end(), 0);
+    closeCount = 0;
+  }
+
+  void merge(const SampleEvidenceCounts& srs)
+  {
+    for (unsigned i(0); i < SVEvidenceType::SIZE; ++i) {
+      eType[i] += srs.eType[i];
+    }
+    closeCount += srs.closeCount;
+  }
+
+  void write(std::ostream& os) const;
+
+  template <class Archive>
+  void serialize(Archive& ar, const unsigned /* version */)
+  {
+    ar& eType& closeCount;
+  }
+
+  // (don't want to bother with std::array even though size is known at compile-time:
+  std::vector<unsigned long> eType = std::vector<unsigned long>(SVEvidenceType::SIZE, 0);
+
+  /// these are anomalous pairs which still are close to the proper pair threshold, thus downweighted
+  unsigned long closeCount = 0;
+};
+
+/// total statistics for each sample
+struct SampleReadCounts {
+  void clear()
+  {
+    sampleSource.clear();
+    input.clear();
+    evidence.clear();
+  }
+
+  void merge(const SampleReadCounts& srs)
+  {
+    assert(sampleSource == srs.sampleSource);
+    input.merge(srs.input);
+    evidence.merge(srs.evidence);
+  }
+
+  void write(std::ostream& os, const char* label) const;
+
+  template <class Archive>
+  void serialize(Archive& ar, const unsigned /* version */)
+  {
+    ar& sampleSource& input& evidence;
+  }
+
+  std::string           sampleSource;
+  SampleReadInputCounts input;
+  SampleEvidenceCounts  evidence;
+};
+
+/// Read count statistics for all samples
+struct AllSampleReadCounts {
+  void clear()
+  {
+    for (auto& sample : _samples) {
+      sample.clear();
+    }
+    _samples.clear();
+  }
+
+  void setSampleCount(const unsigned sampleCount) { _samples.resize(sampleCount); }
+
+  unsigned size() const { return _samples.size(); }
+
+  SampleReadCounts& getSampleCounts(const unsigned index)
+  {
+    assert(index < size());
+    return _samples[index];
+  }
+
+  const SampleReadCounts& getSampleCounts(const unsigned index) const
+  {
+    assert(index < size());
+    return _samples[index];
+  }
+
+  void merge(const AllSampleReadCounts& rhs)
+  {
+    assert(size() == rhs.size());
+
+    const unsigned s(size());
+    for (unsigned i(0); i < s; ++i) {
+      getSampleCounts(i).merge(rhs.getSampleCounts(i));
+    }
+  }
+
+  void write(std::ostream& os, const std::vector<std::string>& sampleLabels) const;
+
+  template <class Archive>
+  void serialize(Archive& ar, const unsigned /* version */)
+  {
+    ar& _samples;
+  }
+
+private:
+  std::vector<SampleReadCounts> _samples;
+};
