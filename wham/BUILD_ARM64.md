@@ -18,7 +18,14 @@ Binaries: `bin/whamg`, `bin/wham`.
 Validated on macOS arm64 (Apple clang 21): whamg calls a synthetic 500bp DEL correctly
 (chr1:9997 <DEL>, 30 supporting reads); wham finishes normally on the same BAM.
 
-Note: whamg's multithreaded graph assembly is nondeterministic by design (upstream
-race in the omp read->graph assignment); small callsets can vary between runs.
-OMP_NUM_THREADS=1 gives reproducible output. Validated single-threaded: the
-synthetic 500bp DEL is called 5/5 runs (chr1:9947 <DEL>).
+Determinism fix: upstream getTree() collected graph nodes into a map keyed by
+heap pointers and iterated it — node order depended on ASLR, so output varied
+run to run (same binary, same input). Fixed by ordering nodes by allocation
+sequence instead. Output is now identical across runs and thread counts
+(-x 1/2/4/8/auto, 25/25 identical in testing) and matches upstream's majority
+behavior (chr1:9999 T <DEL> on the synthetic 500bp DEL test).
+
+Threading: whamg now defaults -x to auto (all logical cores via
+sysconf(_SC_NPROCESSORS_ONLN)) unless the user passes -x explicitly.
+Also fixed: findPairs could dereference NULL when a graph had no connected
+pair (segfault on some inputs).

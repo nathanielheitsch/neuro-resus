@@ -49,6 +49,7 @@ struct edge{
 struct node{
   int   seqid                  ;
   int   pos                    ;
+  long  creation               ; // allocation order (deterministic tie-break)
   std::vector <edge *>      eds;
   std::map<std::string, int> sm;
 };

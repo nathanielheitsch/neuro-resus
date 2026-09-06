@@ -63,6 +63,7 @@ graph        globalGraph;
 libraryStats insertDists;
 // global read pair store
 map<string, readPair*> globalPairStore;
+long nodeCreationCounter = 0; // deterministic node ordering for getTree
 // seqid->int index
 map<string, int> inverse_lookup;
 //int->seqid index
@@ -273,7 +274,8 @@ void printVCF(std::vector<breakpoint*> & bp){
 void getTree(node * n, vector<node *> & ns){
 
   map<edge *, int>  seenEdges ;
-  map<node *, int>  seenNodes ;
+  map<node *, int>  seenNodes ;   // membership only
+  vector<node *>   discovered ;  // discovery order (deterministic)
   vector<edge *>        edges ;
 
   edges.insert(edges.end(), n->eds.begin(), n->eds.end());
@@ -292,8 +294,10 @@ void getTree(node * n, vector<node *> & ns){
           if(seenEdges.find(*it) == seenEdges.end()){
               edges.push_back(*it);
               seenEdges[*it]      = 1;
-              seenNodes[(*it)->L] = 1;
-              seenNodes[(*it)->R] = 1;
+              if(seenNodes.find((*it)->L) == seenNodes.end()){
+                seenNodes[(*it)->L] = 1; discovered.push_back((*it)->L); }
+              if(seenNodes.find((*it)->R) == seenNodes.end()){
+                seenNodes[(*it)->R] = 1; discovered.push_back((*it)->R); }
           }
       }
 
@@ -303,16 +307,24 @@ void getTree(node * n, vector<node *> & ns){
           if(seenEdges.find(*it) == seenEdges.end()){
               edges.push_back(*it);
               seenEdges[*it]      = 1;
-              seenNodes[(*it)->L] = 1;
-              seenNodes[(*it)->R] = 1;
+              if(seenNodes.find((*it)->L) == seenNodes.end()){
+                seenNodes[(*it)->L] = 1; discovered.push_back((*it)->L); }
+              if(seenNodes.find((*it)->R) == seenNodes.end()){
+                seenNodes[(*it)->R] = 1; discovered.push_back((*it)->R); }
           }
       }
 
   }
-  for(std::map<node *, int>::iterator it = seenNodes.begin();
-      it != seenNodes.end(); it++){
-      ns.push_back(it->first);
-  }
+  // upstream iterated a map keyed by heap pointers -> ASLR-dependent node
+  // order -> nondeterministic output. Sort by node allocation order instead:
+  // deterministic, and matches upstream's pointer-order majority behavior.
+  struct creationSort {
+    bool operator()(node * a, node * b) const {
+      return a->creation < b->creation;
+    }
+  };
+  sort(discovered.begin(), discovered.end(), creationSort());
+  ns.insert(ns.end(), discovered.begin(), discovered.end());
 
 }
 
@@ -364,6 +376,7 @@ void addIndelToGraph(int refIDL,
 
   omp_set_lock(&glock);
 
+
   if( ! isInGraph(refIDL, l, globalGraph)
       &&  ! isInGraph(refIDR, r, globalGraph) ){
 
@@ -388,9 +401,9 @@ void addIndelToGraph(int refIDL,
     nodeL->eds.push_back(ed);
     nodeR->eds.push_back(ed);
 
-    nodeL->pos = l;
+    nodeL->pos = l; nodeL->creation = nodeCreationCounter++;
     nodeL->seqid = refIDL;
-    nodeR->pos = r;
+    nodeR->pos = r; nodeR->creation = nodeCreationCounter++;
     nodeR->seqid = refIDR;
 
     globalGraph.nodes[refIDL][l] = nodeL;
@@ -411,7 +424,7 @@ void addIndelToGraph(int refIDL,
    initEdge(ed);
    ed->support[s] += 1;
 
-   nodeR->pos      = r;
+   nodeR->pos      = r; nodeR->creation = nodeCreationCounter++;
    nodeR->seqid    = refIDR;
    ed->L           = globalGraph.nodes[refIDL][l];
    ed->R           = nodeR;
@@ -443,7 +456,7 @@ void addIndelToGraph(int refIDL,
 
    initEdge(ed);
    ed->support[s] += 1;
-   nodeL->pos      = l;
+   nodeL->pos      = l; nodeL->creation = nodeCreationCounter++;
    nodeL->seqid    = refIDL;
    ed->R = globalGraph.nodes[refIDR][r];
    ed->L = nodeL;
@@ -1740,6 +1753,11 @@ void findPairs(vector<node*> & tree,
       }
     }
 
+    if(finalL == NULL || finalR == NULL){
+        // no connected pair in this graph — upstream dereferenced NULL here
+        bp->setMasked();
+        return;
+    }
     bp->add(finalL);
     bp->add(finalR);
 
@@ -2145,7 +2163,7 @@ void loadReads(std::vector<RefData> & sequences){
 
 int main( int argc, char** argv)
 {
-  globalOpts.nthreads     = 1    ;
+  globalOpts.nthreads     = 0    ; // 0 = auto: detect hardware cores after arg parsing
   globalOpts.lastSeqid    = 0    ;
   globalOpts.MQ           = 20   ;
   globalOpts.NM           = 10   ;
@@ -2163,6 +2181,14 @@ int main( int argc, char** argv)
     exit(1);
   }
 
+  // auto threads: use all performance cores unless the user set -x explicitly
+  if(globalOpts.nthreads == 0){
+    long ncpu = sysconf(_SC_NPROCESSORS_ONLN);
+    if(ncpu < 1){ ncpu = 1; }
+    globalOpts.nthreads = (int)ncpu;
+    cerr << "INFO: OpenMP will use " << globalOpts.nthreads
+         << " threads (auto; override with -x)" << endl;
+  }
   omp_set_num_threads(globalOpts.nthreads);
 
   // locks were never initialized upstream (crash under libomp); init all three
