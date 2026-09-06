@@ -1,0 +1,61 @@
+//
+// Manta - Structural Variant and Indel Caller
+// Copyright (c) 2013-2025 Illumina, Inc.
+//
+// This program is licensed under the terms of the Polyform strict license
+//
+// ***As far as the law allows, the software comes as is, without
+// any warranty or condition, and the licensor will not be liable
+// to you for any damages arising out of these terms or the use
+// or nature of the software, under any kind of legal claim.***
+//
+// You should have received a copy of the PolyForm Strict License 1.0.0
+// along with this program.  If not, see <https://polyformproject.org/licenses/strict/1.0.0>.
+//
+//
+
+/// \file
+/// \author Chris Saunders
+///
+
+#pragma once
+
+#include "EdgeRetriever.hpp"
+
+// WARNING -- initial testing suggests this class still has a possible edge repetition/dropout bug
+//            this still has potential but only if you have time to go in and hunt down the bug
+
+/// provide an iterator over edges in a set of SV locus graphs
+///
+/// designed to allow parallelization of the graph processing by
+/// dividing iteration into a set of bins with similar total edge
+/// observation counts
+///
+/// the contents of the bins are designed to be distributed evenly over the sequence of edges
+///
+struct EdgeRetrieverJumpBin : public EdgeRetriever {
+  /// \param[in] graphNodeMaxEdgeCount filtration parameter for skipping edges from highly connected nodes
+  /// (set to zero to disable) \param[in] binCount total number of parallel bins, must be 1 or greater
+  /// \param[in] binIndex parallel bin id, must be less than binCount
+  EdgeRetrieverJumpBin(
+      const SVLocusSet& set,
+      const unsigned    graphNodeMaxEdgeCount,
+      const unsigned    binCount,
+      const unsigned    binIndex);
+
+  bool next() override;
+
+private:
+  void advanceEdge();
+
+  typedef unsigned long count_t;
+
+  unsigned _binCount;
+  unsigned _binIndex;
+  count_t  _edgeIndex;
+
+  // additional 'load balancing' structures:
+  count_t _avgBinTotalCount;
+
+  std::vector<count_t> _binTotalCount;
+};

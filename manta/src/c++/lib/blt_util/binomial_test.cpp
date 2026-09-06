@@ -1,0 +1,141 @@
+//
+// Manta - Structural Variant and Indel Caller
+// Copyright (c) 2013-2025 Illumina, Inc.
+//
+// This program is licensed under the terms of the Polyform strict license
+//
+// ***As far as the law allows, the software comes as is, without
+// any warranty or condition, and the licensor will not be liable
+// to you for any damages arising out of these terms or the use
+// or nature of the software, under any kind of legal claim.***
+//
+// You should have received a copy of the PolyForm Strict License 1.0.0
+// along with this program.  If not, see <https://polyformproject.org/licenses/strict/1.0.0>.
+//
+//
+
+/// \file
+/// \author Chris Saunders
+/// \author Mitch Bekritsky
+///
+
+#include "blt_util/binomial_test.hpp"
+#include "blt_util/stat_util.hpp"
+
+#include <boost/math/distributions/binomial.hpp>
+#include <boost/math/distributions/complement.hpp>
+
+using boost::math::binomial;
+using boost::math::cdf;
+using boost::math::complement;
+
+#include <algorithm>
+
+double get_binomial_twosided_exact_pval(const double p, const unsigned n_success, const unsigned n_trials)
+{
+  assert((p > 0.) && (p < 1.));
+  assert(n_success <= n_trials);
+
+  // otherwise we get p == 2
+  if (n_trials == 0) {
+    return 1;
+  }
+
+  if (fabs(p - 0.5) < DBL_EPSILON) {
+    const unsigned n_failure(n_trials - n_success);
+    const double   obs_p((double)n_success / (double)n_trials);
+
+    double exact_prob;
+    if (obs_p <= p) {
+      exact_prob = cdf(binomial(n_trials, p), n_success);
+    } else {
+      exact_prob = cdf(binomial(n_trials, 1. - p), n_failure);
+    }
+
+    return std::min(1.0, 2. * exact_prob);
+  } else {
+    // naive implementation -- this can be improved
+    // in two ways:
+    // * find upper / lower bound so we don't have to
+    //   evaluate the pdf for every single value
+    //   between 0 and n_trials
+    // * be smarter about additive error
+    binomial dist       = binomial(n_trials, p);
+    double   exact_prob = pdf(dist, n_success);
+    double   result     = 0;
+    for (unsigned j = 0; j <= n_trials; ++j) {
+      double pp = pdf(dist, j);
+      if (pp <= exact_prob) {
+        result += pp;
+      }
+    }
+    return result;
+  }
+}
+
+bool is_reject_binomial_twosided_exact(
+    const double alpha, const double p, const unsigned n_success, const unsigned n_trials)
+{
+  return (get_binomial_twosided_exact_pval(p, n_success, n_trials) < alpha);
+}
+
+bool is_reject_binomial_twosided_chi_sqr(
+    const double alpha, const double p, const unsigned n_success, const unsigned n_trials)
+{
+  assert((p > 0.) && (p < 1.));
+  assert(n_success <= n_trials);
+
+  const unsigned n_failure(n_trials - n_success);
+  const double   e_success(p * n_trials);
+  const double   e_failure(((double)n_trials) - e_success);
+
+  const double d_success(n_success - e_success);
+  const double d_failure(n_failure - e_failure);
+
+  const double xsq((d_success * d_success) / e_success + (d_failure * d_failure) / e_failure);
+
+  return is_chi_sqr_reject(xsq, 1, alpha);
+}
+
+bool is_reject_binomial_twosided(
+    const double alpha, const double p, const unsigned n_success, const unsigned n_trials)
+{
+  static const unsigned exact_test_threshold(250);
+
+  if (n_trials > exact_test_threshold) {
+    return is_reject_binomial_twosided_chi_sqr(alpha, p, n_success, n_trials);
+  } else {
+    return is_reject_binomial_twosided_exact(alpha, p, n_success, n_trials);
+  }
+}
+
+double get_binomial_gte_n_success_exact_pval(
+    const double p, const unsigned n_success, const unsigned n_trials)
+{
+  // although binomial probabilities of
+  // 0 or 1 are possible, they don't have much meaning
+  assert((p >= 0.) && (p <= 1.));
+  assert(n_success <= n_trials);
+  if (n_success == 0) return 1;
+
+  return cdf(complement(binomial(n_trials, p), n_success - 1));
+}
+
+bool is_reject_binomial_gte_n_success_exact(
+    const double alpha, const double p, const unsigned n_success, const unsigned n_trials)
+{
+  assert(alpha >= 0);
+  assert((p >= 0.) && (p <= 1.));
+
+  const double observed_pval = get_binomial_gte_n_success_exact_pval(p, n_success, n_trials);
+
+  return (observed_pval <= alpha);
+}
+
+double min_count_binomial_gte_exact(const double alpha, const double p, const unsigned n_trials)
+{
+  assert(alpha >= 0);
+  assert((p >= 0.) && (p <= 1.));
+
+  return (1 + quantile(complement(binomial(n_trials, p), alpha)));
+}

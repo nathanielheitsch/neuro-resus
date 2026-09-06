@@ -1,0 +1,19 @@
+{
+	"InstallScripts" : 
+	[
+		"/Users/nathanielheitsch/emdash/worktrees/neuro-resus/issue/clean-papers-hide-4ylf4/wham/src/bamtools/build/cmake_install.cmake",
+		"/Users/nathanielheitsch/emdash/worktrees/neuro-resus/issue/clean-papers-hide-4ylf4/wham/src/bamtools/build/src/cmake_install.cmake",
+		"/Users/nathanielheitsch/emdash/worktrees/neuro-resus/issue/clean-papers-hide-4ylf4/wham/src/bamtools/build/src/api/cmake_install.cmake",
+		"/Users/nathanielheitsch/emdash/worktrees/neuro-resus/issue/clean-papers-hide-4ylf4/wham/src/bamtools/build/src/api/internal/cmake_install.cmake",
+		"/Users/nathanielheitsch/emdash/worktrees/neuro-resus/issue/clean-papers-hide-4ylf4/wham/src/bamtools/build/src/api/internal/bam/cmake_install.cmake",
+		"/Users/nathanielheitsch/emdash/worktrees/neuro-resus/issue/clean-papers-hide-4ylf4/wham/src/bamtools/build/src/api/internal/index/cmake_install.cmake",
+		"/Users/nathanielheitsch/emdash/worktrees/neuro-resus/issue/clean-papers-hide-4ylf4/wham/src/bamtools/build/src/api/internal/io/cmake_install.cmake",
+		"/Users/nathanielheitsch/emdash/worktrees/neuro-resus/issue/clean-papers-hide-4ylf4/wham/src/bamtools/build/src/api/internal/sam/cmake_install.cmake",
+		"/Users/nathanielheitsch/emdash/worktrees/neuro-resus/issue/clean-papers-hide-4ylf4/wham/src/bamtools/build/src/api/internal/utils/cmake_install.cmake",
+		"/Users/nathanielheitsch/emdash/worktrees/neuro-resus/issue/clean-papers-hide-4ylf4/wham/src/bamtools/build/src/third_party/cmake_install.cmake",
+		"/Users/nathanielheitsch/emdash/worktrees/neuro-resus/issue/clean-papers-hide-4ylf4/wham/src/bamtools/build/src/third_party/jsoncpp/cmake_install.cmake",
+		"/Users/nathanielheitsch/emdash/worktrees/neuro-resus/issue/clean-papers-hide-4ylf4/wham/src/bamtools/build/src/toolkit/cmake_install.cmake",
+		"/Users/nathanielheitsch/emdash/worktrees/neuro-resus/issue/clean-papers-hide-4ylf4/wham/src/bamtools/build/src/utils/cmake_install.cmake"
+	],
+	"Parallel" : false
+}

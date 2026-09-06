@@ -1,0 +1,101 @@
+//
+// Manta - Structural Variant and Indel Caller
+// Copyright (c) 2013-2025 Illumina, Inc.
+//
+// This program is licensed under the terms of the Polyform strict license
+//
+// ***As far as the law allows, the software comes as is, without
+// any warranty or condition, and the licensor will not be liable
+// to you for any damages arising out of these terms or the use
+// or nature of the software, under any kind of legal claim.***
+//
+// You should have received a copy of the PolyForm Strict License 1.0.0
+// along with this program.  If not, see <https://polyformproject.org/licenses/strict/1.0.0>.
+//
+//
+
+/// \file
+/// \author Chris Saunders and Xiaoyu Chen
+///
+
+#include "SVScorePairRefProcessor.hpp"
+
+#include <cassert>
+#include <sstream>
+
+#include "common/Exceptions.hpp"
+#include "htsapi/bam_record_util.hpp"
+#include "manta/SVCandidateUtil.hpp"
+
+/// standard debug output for this file:
+//#define DEBUG_PAIR
+
+/// ridiculous debug output for this file:
+//#define DEBUG_MEGAPAIR
+
+#ifdef DEBUG_PAIR
+#include "blt_util/log.hpp"
+#endif
+
+void SVScorePairRefProcessor::processClearedRecord(
+    const SVId& /*svId*/, const bam_record& bamRead, SVEvidenceWriterSampleData& /*svSupportFrags*/)
+{
+  using namespace illumina::common;
+
+  assert(bamParams.isSet);
+
+  const pos_t refPos(bamRead.pos() - 1);
+  if (!bamParams.interval.range.is_pos_intersect(refPos)) return;
+
+  const bool isLargeInsert(isLargeInsertSV(sv));
+
+#ifdef DEBUG_MEGAPAIR
+  log_os << __FUNCTION__ << ": read: " << bamRead << "\n";
+#endif
+
+  /// check if fragment is too big or too small:
+  const int templateSize(std::abs(bamRead.template_size()));
+
+  if (!pairOpt.useProperPairFlag) {
+    if (templateSize < bamParams.minFrag) return;
+    if (templateSize > bamParams.maxFrag) return;
+  } else if (!bamRead.is_proper_pair())
+    return;
+
+  // count only from the down stream reads
+  const bool isFirstBamRead(isFirstRead(bamRead));
+
+  // get fragment range:
+  pos_t fragBeginRefPos(refPos);
+  if (!isFirstBamRead) {
+    fragBeginRefPos = bamRead.mate_pos() - 1;
+  }
+
+  const pos_t fragEndRefPos(fragBeginRefPos + templateSize);
+
+  if (fragBeginRefPos > fragEndRefPos) {
+    std::ostringstream oss;
+    oss << "Failed to parse fragment range from bam record. Frag begin,end: " << fragBeginRefPos << " "
+        << fragEndRefPos << " bamRecord: " << bamRead;
+    BOOST_THROW_EXCEPTION(GeneralException(oss.str()));
+  }
+
+  {
+    const pos_t fragOverlap(
+        std::min((1 + svParams.centerPos - fragBeginRefPos), (fragEndRefPos - svParams.centerPos)));
+#ifdef DEBUG_MEGAPAIR
+    log_os << __FUNCTION__ << ": frag begin/end/overlap: " << fragBeginRefPos << " " << fragEndRefPos << " "
+           << fragOverlap << "\n";
+#endif
+    if (fragOverlap < pairOpt.minFragSupport) return;
+  }
+
+  SVFragmentEvidence& fragment(evidence.getSampleEvidence(bamParams.bamIndex)[bamRead.qname()]);
+
+  static const bool isShadow(false);
+
+  SVFragmentEvidenceRead& evRead(fragment.getRead(bamRead.is_first()));
+  setReadEvidence(svParams.minMapQ, svParams.minTier2MapQ, bamRead, isShadow, evRead);
+
+  setAlleleFrag(*bamParams.fragDistroPtr, templateSize, fragment.ref.getBp(isBp1), isLargeInsert);
+}

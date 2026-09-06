@@ -1,0 +1,51 @@
+
+#
+# Using sudo-false/container-based tests for greater (linux) test responsiveness. This doesn't seem
+# to effect the queueing time for OSX tests.
+#
+
+dist: trusty
+sudo: false
+
+language: cpp
+
+matrix:
+  include:
+    - os: linux
+      compiler: gcc
+      install:
+      # Install cppcheck from source:
+      - CPPCHECK_VERSION=1.82 &&
+        wget https://github.com/danmar/cppcheck/archive/${CPPCHECK_VERSION}.tar.gz &&
+        tar -xzf ${CPPCHECK_VERSION}.tar.gz &&
+        make -j4 -C cppcheck-${CPPCHECK_VERSION} &&
+        export PATH=$PATH:$PWD/cppcheck-${CPPCHECK_VERSION}
+    - os: linux
+      compiler: clang
+
+    # Note osx_image request corresponds to travis default as of Aug 2017 (OSX 10.11.6 with Xcode 7.3.1)
+    #
+    # Running gcc would just repeat the clang test on OSX (unless we do some extra work...), so skip it
+    - os: osx
+      compiler: clang
+      osx_image: xcode7.3
+ 
+script:
+  - mkdir build &&
+    cd build &&
+    ../configure --jobs=4 --prefix=../install &&
+    make -j4 install &&
+    ../install/bin/runMantaWorkflowDemo.py
+
+branches:
+  only:
+    - master
+    - travis
+    - /v\d\.\d\.\d/
+
+notifications:
+  email:
+    recipients:
+      - csaunders@illumina.com
+      - xchen@illumina.com
+

@@ -1,0 +1,6 @@
+manta-build/
+manta/build/
+wham/bin/
+wham/src/obj/
+.DS_Store
+wham/src/seqan/.gitattributes
