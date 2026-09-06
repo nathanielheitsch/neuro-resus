@@ -29,3 +29,5 @@ Threading: whamg now defaults -x to auto (all logical cores via
 sysconf(_SC_NPROCESSORS_ONLN)) unless the user passes -x explicitly.
 Also fixed: findPairs could dereference NULL when a graph had no connected
 pair (segfault on some inputs).
+
+Upstream: https://github.com/zeeev/wham (Zachary A. Szpiech et al.)
