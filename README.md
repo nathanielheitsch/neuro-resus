@@ -12,8 +12,33 @@ for a one-time use. All credit for the tools belongs to the original authors.
 
 | Tool | Upstream | License | Original authors |
 |------|----------|---------|------------------|
-| WHAM | https://github.com/zeeev/wham | See `wham/LICENSE.md` | Zachary A. Szpiech et al. |
-| Manta | https://github.com/Illumina/manta | See `manta/LICENSE.txt` | Illumina, Inc. |
+| WHAM | https://github.com/zeeev/wham | MIT (`wham/LICENSE.md`) | Zachary A. Szpiech et al. |
+| Manta | https://github.com/Illumina/manta | GPL v3 / PolyForm Strict (dual) — see below | Illumina, Inc. |
+
+## License status
+
+- **WHAM** (zeeev/wham) is MIT licensed. MIT permits modification,
+  redistribution, and sublicensing provided the original copyright notice
+  and permission notice are retained — `wham/LICENSE.md` is vendored intact,
+  so redistribution of this repo and the release binaries is compliant.
+- **Manta** (Illumina/manta) is dual-licensed: GPL v3 (per
+  `manta/COPYRIGHT.txt` and the headers of ~38 source files) and the
+  PolyForm Strict License 1.0.0 (per `manta/LICENSE.txt` and the headers of
+  ~477 source files). PolyForm Strict permits any **noncommercial** use but
+  forbids redistribution and derivative works; the GPL v3 grant permits
+  both. Because Illumina offers the code under "either version 3 of the
+  License, or (at your option) any later version", GPL v3 applies, which
+  allows modification and redistribution under GPL v3 terms: the complete
+  modified source is vendored here, and the release binaries are
+  accompanied by the Corresponding Source (this repository).
+
+  **Use Manta commercially only with a license from Illumina** — the GPL v3
+  option covers the code Illumina released, but if your use falls outside
+  GPL v3 (e.g. distributing a closed-source product that includes Manta),
+  contact Illumina for a commercial license.
+
+This repository itself is distributed under GPL v3 (inherited from the
+Manta source it contains), with WHAM's MIT-licensed portions remaining MIT.
 
 Both source trees are vendored **complete** in this repo (`wham/`, `manta/`),
 with the nested `.git` directories absorbed so everything is browsable and
