@@ -17,3 +17,8 @@ Binaries: `bin/whamg`, `bin/wham`.
 
 Validated on macOS arm64 (Apple clang 21): whamg calls a synthetic 500bp DEL correctly
 (chr1:9997 <DEL>, 30 supporting reads); wham finishes normally on the same BAM.
+
+Note: whamg's multithreaded graph assembly is nondeterministic by design (upstream
+race in the omp read->graph assignment); small callsets can vary between runs.
+OMP_NUM_THREADS=1 gives reproducible output. Validated single-threaded: the
+synthetic 500bp DEL is called 5/5 runs (chr1:9947 <DEL>).
