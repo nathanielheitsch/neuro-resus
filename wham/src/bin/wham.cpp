@@ -1,4 +1,5 @@
 #include <iostream>
+#include <cctype>
 #include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>
@@ -370,8 +371,8 @@ void printVersion(void){
 }
 
 void printHelp(void){
-  cerr << "usage  : WHAM-BAM -f <STRING> -m <INT> -q <INT> -p <INT> -x <INT> -r <STRING> -e <STRING> -t <STRING> -b <STRING> " << endl << endl;
-  cerr << "example: WHAM-BAM if my.fasta -m 2 -q 15 -p 10 -x 20 -r chr1:0-10000 -e genes.bed -t a.bam,b.bam -b c.bam,d.bam" << endl << endl; 
+  cerr << "usage  : wham -f <STRING> -t <STRING> [options]" << endl << endl;
+  cerr << "example: wham -f my.fasta -t a.bam,b.bam -b c.bam,d.bam -r chr1:0-10000 -e genes.bed" << endl << endl; 
 
   cerr << "required   : t <STRING> -- comma separated list of target bam files          " << endl ;
   cerr << "required   : f <STRING> -- reference sequence reads were aligned to          " << endl ;
@@ -382,11 +383,12 @@ void printHelp(void){
   cerr << "option     : e <STRING> -- a bedfile that defines regions to score  [none]   " << endl ; 
   cerr << "option     : m <INT>    -- minimum number of soft-clips supporting           " << endl ;
   cerr << "                           START [3]                                         " << endl ;                
-  cerr << "option     : q <INT>    -- exclude soft-cliped sequences with average base   " << endl ;
+  cerr << "option     : q <INT>    -- exclude soft-clipped sequences with average base   " << endl ;
   cerr << "                           quality below phred scaled value (0-41) [20]      " << endl ; 
   cerr << "option     : p <INT>    -- exclude soft-clipped reads with mapping quality   " << endl ;
   cerr << "                           below value [15]                                  " << endl ; 
   cerr << "option     : i          -- base quality is Illumina 1.3+ Phred+64            " << endl ; 
+  cerr << "option     : h          -- print this help message and exit                 " << endl ; 
   cerr << endl;
   printVersion();
 }
@@ -419,7 +421,7 @@ void parseOpts(int argc, char** argv){
     case 'p':
       {
 	globalOpts.MQ = atoi(((string)optarg).c_str());
-	cerr << "INFO: WHAM-BAM skip soft-clips with mapping quaity below: " << globalOpts.MQ << endl;
+	cerr << "INFO: WHAM-BAM skip soft-clips with mapping quality below: " << globalOpts.MQ << endl;
 	break;
       }
     case 'q':
@@ -432,7 +434,7 @@ void parseOpts(int argc, char** argv){
     case 'f':
       {
 	globalOpts.fasta =  optarg;
-	cerr << "INFO: WHAM-BAM will using the following fasta: " << globalOpts.fasta << endl;
+	cerr << "INFO: WHAM-BAM will use the following fasta: " << globalOpts.fasta << endl;
 	break;
       }
       
@@ -445,7 +447,7 @@ void parseOpts(int argc, char** argv){
     case 'e':
       {
 	globalOpts.bed = optarg;
-	cerr << "INFO: WHAM-BAM will only score within bed coordiates provided: " << globalOpts.bed << endl;
+	cerr << "INFO: WHAM-BAM will only score within bed coordinates provided: " << globalOpts.bed << endl;
 	break;
       }
     case 'x':
@@ -482,31 +484,48 @@ void parseOpts(int argc, char** argv){
 	}
 
 	vector<string> start_end = split(tmp_region[1], "-");
-        globalOpts.seqid = tmp_region[0];
-        globalOpts.region.push_back(atoi(start_end[0].c_str()));
-        globalOpts.region.push_back(atoi(start_end[1].c_str()));
 
-
-	if(start_end.size() !=2 || start_end[0].empty() || start_end[1].empty()){
+	if(start_end.size() != 2 || start_end[0].empty() || start_end[1].empty()){
 	  cerr << "FATAL: region was not set correctly" << endl;
-          cerr << "INFO:  region format: seqid:start-end" << endl;
-          exit(1);
+	  cerr << "INFO:  region format: seqid:start-end" << endl;
+	  exit(1);
 	}
-		
-	cerr << "INFO: region set to: " <<   globalOpts.seqid << ":" <<   globalOpts.region[0] << "-" <<  globalOpts.region[1] << endl;
-	
-	if(globalOpts.region.size() != 2){
-	  cerr << "FATAL: incorrectly formatted region." << endl;
-	  cerr << "FATAL: wham is now exiting."          << endl;
+
+	for(unsigned int c = 0; c < start_end[0].size(); c++){
+	  if(!isdigit(start_end[0][c])){
+	    cerr << "FATAL: region start and end must be integers, got: "
+	         << tmp_region[1] << endl;
+	    cerr << "INFO:  region format: seqid:start-end" << endl;
+	    exit(1);
+	  }
+	}
+	for(unsigned int c = 0; c < start_end[1].size(); c++){
+	  if(!isdigit(start_end[1][c])){
+	    cerr << "FATAL: region start and end must be integers, got: "
+	         << tmp_region[1] << endl;
+	    cerr << "INFO:  region format: seqid:start-end" << endl;
+	    exit(1);
+	  }
+	}
+
+	globalOpts.seqid = tmp_region[0];
+	globalOpts.region.push_back(atoi(start_end[0].c_str()));
+	globalOpts.region.push_back(atoi(start_end[1].c_str()));
+
+	cerr << "INFO: region set to: " << globalOpts.seqid << ":" << globalOpts.region[0] << "-" << globalOpts.region[1] << endl;
+
+	if(globalOpts.region.size() != 2 || globalOpts.region[0] > globalOpts.region[1]){
+	  cerr << "FATAL: region start must be less than or equal to end." << endl;
 	  exit(1);
 	}
 	break;
       }
     case '?':
       {
+	cerr << "FATAL: unknown or missing option: -" << char(optopt) << endl;
 	printHelp();
 	exit(1);
-      }  
+      } 
   default:
     {
       cerr << "FATAL: Failure to parse command line options." << endl;
@@ -588,12 +607,12 @@ void grabInsertLengths(string & targetfile){
 
   BamReader bamR;
   if(!bamR.Open(targetfile)   ){
-    cerr << "FATAL: cannot find - or - read : " << targetfile << endl;
+    cerr << "FATAL: cannot find or read: " << targetfile << endl;
     exit(1);
   }
 
   if(! bamR.LocateIndex()){
-    cerr << "FATAL: cannot find - or - open index for : " << targetfile << endl;
+    cerr << "FATAL: cannot find or open index for: " << targetfile << endl;
     exit(1);
   }
 
