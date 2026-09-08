@@ -42,7 +42,8 @@ if (NOT GIT_VERSION)
 endif()
 
 if (NOT GIT_VERSION)
-    set(GIT_VERSION "UNKNOWN")
+    # no git tags in this vendored tree: fall back to the release version from CHANGELOG.md
+    set(GIT_VERSION "1.6.0")
 else ()
     STRING(REGEX REPLACE "^v" "" GIT_VERSION ${GIT_VERSION})
 endif ()

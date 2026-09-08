@@ -31,7 +31,7 @@ def main() :
     #
     # initialize paths:
     #
-    scriptDir=os.path.abspath(os.path.dirname(__file__))
+    scriptDir=os.path.dirname(os.path.realpath(__file__))
     demoDir=os.path.abspath(os.path.join(scriptDir,os.pardir,"share","demo","manta"))
     dataDir=os.path.join(demoDir,"data")
     expectedDir=os.path.join(demoDir,"expectedResults")
@@ -134,7 +134,7 @@ def main() :
             """
             return (rexclude.match(line) is not None)
 
-        rfp = gzip.open(f)
+        rfp = gzip.open(f, "rt")
         for line in rfp :
             if rstreamFilter(line) : continue
             yield line

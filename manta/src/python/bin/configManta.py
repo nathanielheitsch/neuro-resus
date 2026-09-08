@@ -29,7 +29,7 @@ if sys.version_info < (3,0):
     raise Exception("Manta requires python3 (version %s detected)" % (platform.python_version()))
 
 
-scriptDir=os.path.abspath(os.path.dirname(__file__))
+scriptDir=os.path.dirname(os.path.realpath(__file__))
 scriptName=os.path.basename(__file__)
 workflowDir=os.path.abspath(os.path.join(scriptDir,"@THIS_RELATIVE_PYTHON_LIBDIR@"))
 

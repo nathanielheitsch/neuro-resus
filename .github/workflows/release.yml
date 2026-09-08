@@ -1,0 +1,57 @@
+# Build standalone (no Homebrew dylib deps) arm64 binaries of wham and manta
+# and attach them to a GitHub release. Casks in homebrew-tap/Casks/ consume these.
+#
+# Trigger: push a tag matching wham-v* or manta-v* (e.g. wham-v1.0.0, manta-v1.6.0)
+name: release
+on:
+  push:
+    tags:
+      - "wham-v*"
+      - "manta-v*"
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: macos-14
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install build deps
+        run: brew install cmake boost libomp
+
+      # ---- wham ----
+      - name: Build wham
+        if: startsWith(github.ref, 'refs/tags/wham-v')
+        run: |
+          cd wham && make -j8
+
+      - name: Package wham
+        if: startsWith(github.ref, 'refs/tags/wham-v')
+        run: |
+          mkdir -p dist
+          tar czf dist/wham-v${GITHUB_REF_NAME#wham-v}-macos-arm64.tar.gz -C wham/bin wham
+          shasum -a 256 dist/*.tar.gz
+
+      # ---- manta ----
+      - name: Build manta (static boost via THIS_FORCE_STATIC_LINK)
+        if: startsWith(github.ref, 'refs/tags/manta-v')
+        run: |
+          cmake -S manta -B manta-build -DTHIS_FORCE_STATIC_LINK=ON \
+            -DCMAKE_INSTALL_PREFIX="$PWD/manta-install"
+          make -C manta-build -j8 install
+
+      - name: Package manta
+        if: startsWith(github.ref, 'refs/tags/manta-v')
+        run: |
+          mkdir -p dist
+          tar czf dist/manta-v${GITHUB_REF_NAME#manta-v}-macos-arm64.tar.gz manta-install
+          # cask expects top-level 'manta/' in the archive:
+          tar czf dist/manta-v${GITHUB_REF_NAME#manta-v}-macos-arm64.tar.gz --transform 's,^manta-install,manta,' manta-install
+          shasum -a 256 dist/*.tar.gz
+
+      - name: Attach to release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: dist/*
