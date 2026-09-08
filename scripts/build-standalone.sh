@@ -4,25 +4,24 @@
 #
 # Usage: scripts/build-standalone.sh [wham|manta|all] [--notarize]
 #
-# Signing: uses the first "Apple Development" identity in the keychain by default.
+# Signing: uses the first "Developer ID Application" identity in the keychain by default.
 #   override with SIGN_IDENTITY="..." scripts/build-standalone.sh
-# Notarization: requires paid Developer Program credentials stored via
-#   xcrun notarytool store-credentials NOTARY_PROFILE --apple-id <email> --team-id <id>
-#   then run with --notarize. Also requires a "Developer ID Application" certificate
-#   issued to Barnstorm LLC's Developer Program account.
+# Notarization requires credentials stored via:
+#   xcrun notarytool store-credentials NOTARY_PROFILE ...
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
 TARGET="${1:-all}"
 NOTARIZE="${2:-}"
-IDENTITY="${SIGN_IDENTITY:-$(security find-identity -v -p codesigning | awk -F'"' '/Apple Development/{print $2; exit}')}"
-[ -n "$IDENTITY" ] || { echo "FATAL: no codesigning identity found" >&2; exit 1; }
+IDENTITY="${SIGN_IDENTITY:-$(security find-identity -v -p codesigning | awk -F'"' '/Developer ID Application/{print $2; exit}')}"
+[ -n "$IDENTITY" ] || { echo "FATAL: no Developer ID Application identity found" >&2; exit 1; }
 echo "Signing identity: $IDENTITY"
 
 sign_tree() { # all mach-o executables under $1
     find "$1" -type f -perm +111 | while read -r f; do
         file "$f" | grep -q "Mach-O" || continue
         codesign --force --timestamp --options runtime --sign "$IDENTITY" "$f"
+        codesign --verify --strict --verbose=2 "$f"
     done
 }
 
@@ -51,11 +50,16 @@ build_manta() {
 
 do_notarize() {
     echo "== notarize =="
-    xcrun notarytool submit "dist/wham-v1.0.0-macos-arm64.tar.gz" --keychain-profile NOTARY_PROFILE --wait || true
-    xcrun notarytool submit "dist/manta-v1.6.0-macos-arm64.tar.gz" --keychain-profile NOTARY_PROFILE --wait || true
-    # staple so Gatekeeper can verify offline:
-    xcrun stapler staple "dist/wham-v1.0.0-macos-arm64.tar.gz" || true
-    xcrun stapler staple "dist/manta-v1.6.0-macos-arm64.tar.gz" || true
+    # The service accepts ZIP, not tar.gz; standalone binaries cannot be stapled.
+    # Package the exact final bytes so Gatekeeper can retrieve their ticket online.
+    for name in wham manta; do
+        archive="dist/${name}-v$([ "$name" = wham ] && echo 1.0.0 || echo 1.6.0)-macos-arm64.tar.gz"
+        tmpdir="$(mktemp -d)"
+        tar xzf "$archive" -C "$tmpdir"
+        ditto -c -k --keepParent "$tmpdir/$name" "$tmpdir/$name.zip"
+        xcrun notarytool submit "$tmpdir/$name.zip" --keychain-profile NOTARY_PROFILE --wait
+        rm -rf "$tmpdir"
+    done
 }
 
 case "$TARGET" in

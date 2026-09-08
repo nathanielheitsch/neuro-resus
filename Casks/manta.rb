@@ -2,7 +2,7 @@ cask "manta" do
   arch arm: "arm64"
 
   version "1.6.0"
-  sha256 "08705e8a833b481ba8b63c32c8ceb11f46dd45cc026f742eb2951eb07756efa9"
+  sha256 "b0fc4efa2ae0dbbe58fc3be67b901c913ebdbe179efe21303c279a241a923a0c"
 
   url "https://github.com/nathanielheitsch/neuro-resus/releases/download/manta-v#{version}/manta-v#{version}-macos-#{arch}.tar.gz"
   name "Manta"
@@ -17,11 +17,6 @@ cask "manta" do
   depends_on :macos
   depends_on arch: :arm64
 
-  # ponytail: quarantine strip until Developer ID + notarization are available;
-  # switch to notarized binaries and remove this when the paid cert exists.
-  postflight do
-    system_command "xattr", args: ["-dr", "com.apple.quarantine", staged_path]
-  end
 
   binary "manta/bin/configManta.py"
   binary "manta/bin/runMantaWorkflowDemo.py"

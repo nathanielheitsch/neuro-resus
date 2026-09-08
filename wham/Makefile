@@ -35,6 +35,7 @@ src/fastahack/Fasta.o:
 	cd src/fastahack && make
 
 src/obj/%.o: src/lib/%.cpp
+	@mkdir -p src/obj bin
 	$(CXX) $(CFLAGS) $(INCLUDE) $(LIBS) -c -o $@ $<
 
 bin/whamg: src/bamtools/lib/libbamtools.a $(OBJ_FILES)
