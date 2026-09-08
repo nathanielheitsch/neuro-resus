@@ -12,7 +12,7 @@ INCLUDE_PLUS := $(INCLUDE) -Isrc/seqan/core/include/ -Isrc/seqan/extras/include 
 
 SSW=src/Complete-Striped-Smith-Waterman-Library/src
 
-LIBS=-L/opt/homebrew/opt/libomp/lib -lomp -lz -lm
+LIBS=-L/opt/homebrew/opt/libomp/lib /opt/homebrew/opt/libomp/lib/libomp.a -lz -lm
 LBAMTOOLS=src/bamtools/lib/libbamtools.a
 CPP_FILES := $(wildcard src/lib/*.cpp)
 OBJ_FILES := $(addprefix src/obj/,$(notdir $(CPP_FILES:.cpp=.o)))
@@ -40,7 +40,7 @@ src/obj/%.o: src/lib/%.cpp
 bin/whamg: src/bamtools/lib/libbamtools.a $(OBJ_FILES)
 	$(CXX) $(CFLAGS) $(INCLUDE) src/bin/whamg.cpp $(LBAMTOOLS) $(OBJ_FILES) -o bin/whamg $(LIBS)
 
-bin/wham: src/bamtools/lib/libbamtools.a $(OBJ_FILES)
+bin/wham: src/bamtools/lib/libbamtools.a $(OBJ_FILES) src/bin/wham.cpp
 	$(CXX) $(CFLAGS) $(INCLUDE_PLUS) src/bin/wham.cpp $(LBAMTOOLS) $(OBJ_FILES) -o bin/wham $(LIBS)
 clean:
 	rm -rf bin && rm -rf src/obj/*
