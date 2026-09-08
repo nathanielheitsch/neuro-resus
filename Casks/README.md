@@ -6,15 +6,10 @@ binaries of the tools in this repo, installable via Homebrew casks.
 ## Install
 
 ```sh
-brew install --cask nathanielheitsch/neuro-resus/wham
-brew install --cask nathanielheitsch/neuro-resus/manta
-```
-
-Homebrew auto-taps this repo on first use; or explicitly:
-
-```sh
+# Homebrew 6 requires explicit trust before it loads third-party casks.
+brew trust --cask nathanielheitsch/neuro-resus/wham nathanielheitsch/neuro-resus/manta
 brew tap nathanielheitsch/neuro-resus https://github.com/nathanielheitsch/neuro-resus
-brew install --cask wham   # or manta
+brew install --cask nathanielheitsch/neuro-resus/wham nathanielheitsch/neuro-resus/manta
 ```
 
 ## What gets installed
@@ -31,10 +26,10 @@ Both casks declare `depends_on arch: :arm64` (Apple Silicon only).
 
 ## Releasing a new version
 
-1. Push a tag `wham-vX.Y.Z` or `manta-vX.Y.Z` — the `release` workflow builds
-   the standalone artifact and attaches it to a GitHub release.
-2. Copy the sha256 from the workflow log (or `shasum -a 256 <artifact>`) into
-   the cask's `sha256` stanza, bump `version`, commit, push.
+1. Run `scripts/build-standalone.sh all --notarize`, then copy its SHA-256
+   values into the casks' `sha256` stanzas and bump `version`.
+2. Publish the tarballs with `gh release create <tag> dist/<artifact>` (or
+   `gh release upload <tag> dist/<artifact> --clobber`), then commit and push.
 3. Verify locally:
 
 ```sh
